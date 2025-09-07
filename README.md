@@ -1,6 +1,7 @@
 # 🍝 nudel – Nuclear Data Extraction Library
 
 [![License](https://img.shields.io/badge/License-GPL%20v3+-blue.svg)](COPYING)
+[![CI](https://github.com/op3/nudel/actions/workflows/main.yml/badge.svg)](https://github.com/op3/nudel/actions/workflows/main.yml)
 
 Nudel is a parser for the Evaluated Nuclear Structure Data File (ENSDF) format implemented in Python.
 
@@ -26,7 +27,7 @@ Alternatively, you can set `$ENSDF_PATH` to point to a different directory for t
 
 ## Requirements
 
-- python>=3.7
+- python>=3.10
 - pytest (*optional, only for unit tests*)
 - pytest-cov (*optional, only for unit tests*)
 
