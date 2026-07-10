@@ -140,9 +140,6 @@ class Dataset:
         self.field_footnotes = {}
         self.specific_footnotes = {}
         self._parse_dataset()
-        # print(self.field_footnotes)
-        # print(self.specific_footnotes)
-        # print(self.formatted_general_comments)
 
     def _add_record(self, record, comments, xref, level=None):
         rec_type = get_record_type(record)
@@ -202,8 +199,11 @@ class Dataset:
                                 self.field_footnotes[field] = text
 
                     else:
-                        text = TextField(line[9:].strip())
-                        self.formatted_general_comments.append(text)
+                        if flag_com.lower() != "t":
+                            text = TextField(line[9:].strip())
+                        else:
+                            text = TextField(line[9:])
+                        self.formatted_general_comments.append((text,flag_com))
 
                     self.comments.append([line])
                     last_field = text
@@ -294,9 +294,7 @@ class Dataset:
         for key,val in self.specific_footnotes.items():
             self.specific_footnotes[key] = (val[0],str(val[1]))
         for i in range(0, len(self.formatted_general_comments)):
-            self.formatted_general_comments[i] = str(self.formatted_general_comments[i])
-            #TODO replace symbols
-
+            self.formatted_general_comments[i] = (str(self.formatted_general_comments[i][0]), self.formatted_general_comments[i][1])
 
     def add_jpi(self, level):
         for ang_mom in level.ang_mom:
