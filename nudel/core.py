@@ -20,6 +20,7 @@
 """Python interface for ENSDF nuclear data"""
 
 from datetime import datetime
+import enum
 import re
 from dataclasses import dataclass
 from typing import Iterator, List, Optional, Tuple, Union
@@ -131,10 +132,17 @@ class Dataset:
         self.qrecords = []
         self.normalization_records = []
         self.comments = []
+        self.formatted_general_comments = []
         self.parents = []
         self.references = []
         self.cross_references = {}
+        self.alternative_labels = {}
+        self.field_footnotes = {}
+        self.specific_footnotes = {}
         self._parse_dataset()
+        # print(self.field_footnotes)
+        # print(self.specific_footnotes)
+        # print(self.formatted_general_comments)
 
     def _add_record(self, record, comments, xref, level=None):
         rec_type = get_record_type(record)
@@ -155,6 +163,7 @@ class Dataset:
         level = None
         history = ""
         header = True
+        last_field = None
 
         for line in self.raw[:-1]:
             flag_cont, flag_com, flag_rectype, flag_particle = line[5:9]
@@ -165,8 +174,40 @@ class Dataset:
                             self.comments[-1].append(line)
                         except IndexError:
                             self.comments.append([line])
+
+                        if last_field is None:
+                            raise ValueError("Continuation line with no preceding field")
+                        last_field.append( line[9:].strip() )
+                        continue
+
+                    if "$LABEL=" in line:
+                        split_dollar = line[9:].split("$", 1)
+                        text = None
+                        self.alternative_labels[split_dollar[0]] = split_dollar[1].lstrip("LABEL=").strip()
+
+                    elif "$" in line:
+                        split_dollar = line[9:].split("$", 1)
+                        if "(" in split_dollar[0]:
+                            match = re.findall(r"([A-Z]+)\(([A-Z])\)", split_dollar[0])
+                            if match is not None:
+                                fields = [ x[0] for x in match ]
+                                footnote_label = match[0][1]
+                                text = TextField(split_dollar[1].strip())
+                                self.specific_footnotes[footnote_label] = ( fields, text )
+                            else:
+                                raise ValueError (f"Cannot match footnotes {split_dollar[0]}")
+                        else:
+                            for field in split_dollar[0].split(","):
+                                text = TextField(split_dollar[1].strip())
+                                self.field_footnotes[field] = text
+
                     else:
-                        self.comments.append([line])
+                        text = TextField(line[9:].strip())
+                        self.formatted_general_comments.append(text)
+
+                    self.comments.append([line])
+                    last_field = text
+
                 else:
                     if flag_rectype in "BAGEL" or (
                         flag_rectype in " D" and flag_particle in "PAN"
@@ -247,6 +288,15 @@ class Dataset:
             except ValueError:
                 # TODO: Maybe wrong linebreak?
                 pass
+
+        for key,val in self.field_footnotes.items():
+            self.field_footnotes[key]= str(val)
+        for key,val in self.specific_footnotes.items():
+            self.specific_footnotes[key] = (val[0],str(val[1]))
+        for i in range(0, len(self.formatted_general_comments)):
+            self.formatted_general_comments[i] = str(self.formatted_general_comments[i])
+            #TODO replace symbols
+
 
     def add_jpi(self, level):
         for ang_mom in level.ang_mom:
@@ -887,6 +937,22 @@ class AngularMoment:
                 ang_mom = self.ang_mom / self.div
                 return abs(ang_mom - float(other[0])) < 0.1
             return self.ang_mom == other[0]
+
+class TextField:
+    """A mutable box for a string that may be built across multiple lines"""
+    __slots__ = ("lines",)
+
+    def __init__(self, first_line):
+        self.lines = [first_line]
+
+    def append(self, line):
+        self.lines.append(line)
+
+    def __str__(self):
+        return " ".join(self.lines)
+
+    def __repr__(self):
+        return f"TextField({str(self)!r})"
 
 
 def get_active_ensdf():
