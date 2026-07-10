@@ -318,11 +318,31 @@ class Record(BaseRecord):
         self.record = record
         self.dataset = dataset
         self.comments = []
+        self.formatted_comments = []
         self._xref = xref
         self.parse_xref()
         if comments:
             for comment in comments:
                 self.comments.append(GeneralCommentRecord(dataset, comment))
+            current_comment = ""
+            for list_of_comments in comments:
+                for comment in list_of_comments:
+                    flag_cont, flag_com = comment[5:7]
+
+                    if flag_cont != " ":
+                        if flag_com != "t":
+                            current_comment += " " + comment[9:].lstrip("$").strip().replace("$", ":")
+                        else:
+                            current_comment += comment[9:]
+                    else:
+                        if current_comment != "":
+                            self.formatted_comments.append( ( current_comment, flag_com ) )
+                        if flag_com != "t":
+                            current_comment = comment[9:].lstrip("$").strip().replace("$",":")
+                        else:
+                            current_comment = comment[9:]
+
+            self.formatted_comments.append( ( current_comment, flag_com ) )
 
     def parse_xref(self):
         self.xref = {}
