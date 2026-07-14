@@ -181,60 +181,12 @@ class Dataset:
                         split_dollar = line[9:].split("$", 1)
                         text = None
                         self.alternative_labels[split_dollar[0]] = split_dollar[1].lstrip("LABEL=").strip()
-
                     elif "$" in line:
                         split_dollar = line[9:].split("$", 1)
-                        if "(" in split_dollar[0]:
-                            match = re.findall(r"([A-Z]+)\(([A-Za-z0-9,\s]+)\)", split_dollar[0])
-                            if match is not None:
-                                fields = [ x[0] for x in match ]
-                                footnote_labels = [ x[1] for x in match ]
-                                text = TextField(split_dollar[1].strip())
-                                for field, label in zip(fields,footnote_labels):
-                                    if label in self.specific_footnotes:
-                                        self.specific_footnotes[label] = ( self.specific_footnotes[label][0] + [field], text)
-                                    else:
-                                        self.specific_footnotes[label] = ( [field], text )
-                            else:
-                                raise ValueError(f"Cannot match footnotes {split_dollar[0]}")
-                        else:
-                            for field in split_dollar[0].split(","):
-                                if field != "":
-                                    text = TextField(split_dollar[1].strip())
-                                    self.field_footnotes[field] = text
-                                else:
-                                    if flag_com.lower() != "t":
-                                        text = TextField(line[9:].strip())
-                                    else:
-                                        text = TextField(line[9:])
-                                    self.formatted_general_comments.append((text,flag_com))
-
+                        text = self._parse_potential_footnote( split_dollar[0], split_dollar[1], line, flag_com)
                     elif line[18] == " " and line[19] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789":
                         split_space = [line[9:19], line[19:]]
-                        if split_space[1].strip() == "":
-                            if flag_com.lower() != "t":
-                                text = TextField(line[9:].strip())
-                            else:
-                                text = TextField(line[9:])
-                            self.formatted_general_comments.append((text,flag_com))
-                        elif "(" in split_space[0]:
-                            match = re.findall(r"([A-Z]+)\(([A-Za-z0-9,\s]+)\)", split_space[0])
-                            if match is not None:
-                                fields = [ x[0] for x in match ]
-                                footnote_labels = [ x[1] for x in match ]
-                                text = TextField(split_space[1].strip())
-                                for field, label in zip(fields,footnote_labels):
-                                    print(field,label, text)
-                                    if label in self.specific_footnotes:
-                                        self.specific_footnotes[label] = ( self.specific_footnotes[label][0] + [field], text)
-                                    else:
-                                        self.specific_footnotes[label] = ( [field], text )
-                            else:
-                                raise ValueError(f"Cannot match footnotes{split_space[0]}")
-                        else:
-                            for field in split_space[0].split(","):
-                                text = TextField(split_space[1].strip())
-                                self.field_footnotes[field] = text
+                        text = self._parse_potential_footnote(split_space[0], split_space[1], line, flag_com)
                     else:
                         if flag_com.lower() != "t":
                             text = TextField(line[9:].strip())
@@ -343,6 +295,48 @@ class Dataset:
 
     def __repr__(self):
         return f"<{self.__class__.__name__}: {self.nucid} ({self.dataset_id})>"
+
+    def _parse_potential_footnote(self, lhs : str, rhs : str, line : str, flag_com : str):
+        # Work out if it's just a really short comment
+        if rhs.strip() == "":
+            if flag_com.lower() != "t":
+                text = TextField(line[9:].strip())
+            else:
+                text = TextField(line[9:])
+            self.formatted_general_comments.append((text,flag_com))
+
+        # Bracket indicates a footnote between the brackets - try to extract
+        elif "(" in lhs:
+            match = re.findall(r"([A-Z]+)\(([A-Za-z0-9,\s]+)\)", lhs)
+            if match is not None:
+                fields = [ x[0] for x in match ]
+                footnote_labels = [ x[1] for x in match ]
+                text = TextField(rhs.strip())
+                for field, label in zip(fields,footnote_labels):
+                    if label in self.specific_footnotes:
+                        self.specific_footnotes[label] = (self.specific_footnotes[label][0] + [field], text)
+                    else:
+                        self.specific_footnotes[label] = ( [field], text )
+            else:
+                raise ValueError(f"Cannot match footnotes {lhs[0]}")
+
+        # Now check if there are commas in the lhs or not - indicates a field footnote
+        elif "," in lhs:
+            for field in lhs.split(","):
+                text = TextField(rhs.strip())
+                self.field_footnotes[field] = text
+
+        # Just a regular comment that happened to have a blank in just the right place
+        else:
+            if flag_com.lower() != "t":
+                text = TextField(line[9:].strip())
+            else:
+                text = TextField(line[9:])
+            self.formatted_general_comments.append((text,flag_com))
+
+        return text
+
+
 
 
 class BaseRecord:
