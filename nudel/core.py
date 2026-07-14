@@ -185,19 +185,56 @@ class Dataset:
                     elif "$" in line:
                         split_dollar = line[9:].split("$", 1)
                         if "(" in split_dollar[0]:
-                            match = re.findall(r"([A-Z]+)\(([A-Z])\)", split_dollar[0])
+                            match = re.findall(r"([A-Z]+)\(([A-Za-z0-9,\s]+)\)", split_dollar[0])
                             if match is not None:
                                 fields = [ x[0] for x in match ]
-                                footnote_label = match[0][1]
+                                footnote_labels = [ x[1] for x in match ]
                                 text = TextField(split_dollar[1].strip())
-                                self.specific_footnotes[footnote_label] = ( fields, text )
+                                for field, label in zip(fields,footnote_labels):
+                                    if label in self.specific_footnotes:
+                                        self.specific_footnotes[label] = ( self.specific_footnotes[label][0] + [field], text)
+                                    else:
+                                        self.specific_footnotes[label] = ( [field], text )
                             else:
-                                raise ValueError (f"Cannot match footnotes {split_dollar[0]}")
+                                raise ValueError(f"Cannot match footnotes {split_dollar[0]}")
                         else:
                             for field in split_dollar[0].split(","):
-                                text = TextField(split_dollar[1].strip())
-                                self.field_footnotes[field] = text
+                                if field != "":
+                                    text = TextField(split_dollar[1].strip())
+                                    self.field_footnotes[field] = text
+                                else:
+                                    if flag_com.lower() != "t":
+                                        text = TextField(line[9:].strip())
+                                    else:
+                                        text = TextField(line[9:])
+                                    self.formatted_general_comments.append((text,flag_com))
 
+                    elif line[18] == " " and line[19] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789":
+                        split_space = [line[9:19], line[19:]]
+                        if split_space[1].strip() == "":
+                            if flag_com.lower() != "t":
+                                text = TextField(line[9:].strip())
+                            else:
+                                text = TextField(line[9:])
+                            self.formatted_general_comments.append((text,flag_com))
+                        elif "(" in split_space[0]:
+                            match = re.findall(r"([A-Z]+)\(([A-Za-z0-9,\s]+)\)", split_space[0])
+                            if match is not None:
+                                fields = [ x[0] for x in match ]
+                                footnote_labels = [ x[1] for x in match ]
+                                text = TextField(split_space[1].strip())
+                                for field, label in zip(fields,footnote_labels):
+                                    print(field,label, text)
+                                    if label in self.specific_footnotes:
+                                        self.specific_footnotes[label] = ( self.specific_footnotes[label][0] + [field], text)
+                                    else:
+                                        self.specific_footnotes[label] = ( [field], text )
+                            else:
+                                raise ValueError(f"Cannot match footnotes{split_space[0]}")
+                        else:
+                            for field in split_space[0].split(","):
+                                text = TextField(split_space[1].strip())
+                                self.field_footnotes[field] = text
                     else:
                         if flag_com.lower() != "t":
                             text = TextField(line[9:].strip())
@@ -382,6 +419,11 @@ class Record(BaseRecord):
                 quant, abbr, value = entry.split(" ", maxsplit=2)
                 self.prop[quant.strip()] = f"{value.strip()} {abbr}"
                 return
+        for abbr in ["~"]:
+            if abbr in entry:
+                quant,value = entry.split(abbr, maxsplit=1)
+                self.prop[quant.strip()] = f"{value.strip()} {abbr}"
+                return
         if entry[-1] == "?":
             self.prop[entry[:-1]] = "?"
             return
@@ -517,7 +559,6 @@ class LevelRecord(Record):
         self.state_num = None
         self.decays = []
         self.populating = []
-
         self.attr = dict()
         self.energy = Quantity(self.prop["E"], "KEV")
         self.ang_mom = ang_mom_parser(self.prop["J"])
@@ -557,6 +598,11 @@ class LevelRecord(Record):
                 s.calculated = True
 
         self.index = self.dataset.add_jpi(self)
+
+        self.footnote_flags = list( self.prop["C"] )
+        if "FLAG" in self.prop:
+            self.footnote_flags += list(self.prop["FLAG"])
+
 
     def add_decay(self, decay):
         self.decays.append(decay)
