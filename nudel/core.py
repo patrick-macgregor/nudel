@@ -184,7 +184,7 @@ class Dataset:
                     elif "$" in line:
                         split_dollar = line[9:].split("$", 1)
                         text = self._parse_potential_footnote( split_dollar[0], split_dollar[1], line, flag_com)
-                    elif line[18] == " " and line[19] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789":
+                    elif line[18] == " " and line[19] != " ":
                         split_space = [line[9:19], line[19:]]
                         text = self._parse_potential_footnote(split_space[0], split_space[1], line, flag_com)
                     else:
@@ -305,18 +305,21 @@ class Dataset:
                 text = TextField(line[9:])
             self.formatted_general_comments.append((text,flag_com))
 
-        # Bracket indicates a footnote between the brackets - try to extract
+        # Bracket indicates a footnote between the brackets - try to extract.
+        # Note that multiple letters correspond to individual footnotes with
+        # the same text that applies to different field combinations
         elif "(" in lhs:
             match = re.findall(r"([A-Z]+)\(([A-Za-z0-9,\s]+)\)", lhs)
             if match is not None:
                 fields = [ x[0] for x in match ]
-                footnote_labels = [ x[1] for x in match ]
+                footnote_label_combinations = [ x[1] for x in match ]
                 text = TextField(rhs.strip())
-                for field, label in zip(fields,footnote_labels):
-                    if label in self.specific_footnotes:
-                        self.specific_footnotes[label] = (self.specific_footnotes[label][0] + [field], text)
-                    else:
-                        self.specific_footnotes[label] = ( [field], text )
+                for field, labels in zip(fields,footnote_label_combinations):
+                    for label in labels:
+                        if label in self.specific_footnotes:
+                            self.specific_footnotes[label] = (self.specific_footnotes[label][0] + [field], text)
+                        else:
+                            self.specific_footnotes[label] = ([field], text)
             else:
                 raise ValueError(f"Cannot match footnotes {lhs[0]}")
 
@@ -325,6 +328,11 @@ class Dataset:
             for field in lhs.split(","):
                 text = TextField(rhs.strip())
                 self.field_footnotes[field] = text
+
+        # Now check if it's just a single field footnote - i.e. a single letter
+        elif len(lhs.strip()) == 1:
+            text = TextField(rhs.strip())
+            self.field_footnotes[lhs.strip()] = text
 
         # Just a regular comment that happened to have a blank in just the right place
         else:
